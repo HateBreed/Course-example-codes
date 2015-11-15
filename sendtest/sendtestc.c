@@ -103,11 +103,11 @@ int write_to_udp_socket(int sockfd, char* data, unsigned int data_len, unsigned 
 	while(current_block < blocks)
 	{
 		if((wrote = sendto(sockfd,
-							&data[*data_written],
-							data_len - *data_written < buffer_size ? data_len - *data_written : buffer_size, // Less than buffer size = last
-							0,
-							(struct sockaddr*)&receiver,addrlen)) 
-							< 0)
+					&data[*data_written],
+					data_len - *data_written < buffer_size ? data_len - *data_written : buffer_size, // Less than buffer size = last
+					0,
+					(struct sockaddr*)&receiver,addrlen)) 
+					< 0)
 		{
 			perror("writing to socket failed");
 			return -1;
