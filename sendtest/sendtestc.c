@@ -16,7 +16,7 @@ int main(int argc, char* argv[])
 	*(uint32_t*)&buf[0] = htonl(len); // Size at the front
 	memcpy(&buf[sizeof(uint32_t)],"<START>",7); // Start tag
 	for(int i = sizeof(uint32_t)+7; i < len-5; i++) 
-		buf[i] = 65+(i%20); // data
+	buf[i] = 65+(i%20); // data
 	memcpy(&buf[len-5],"<END>",5); // end tag
 	
 	int sockfd = socket(AF_INET,SOCK_STREAM,0); 
@@ -46,8 +46,8 @@ int main(int argc, char* argv[])
 	else if(wrote == len) 
 		printf("wrote all data: %u bytes \n",wrote);
 	
-	sleep(2);
-	close(sockfd);
+	//sleep(2);
+	
 	wrote = 0;
 	
 	peer.sin_port = htons(atoi(argv[2])+1);
@@ -57,6 +57,8 @@ int main(int argc, char* argv[])
                 printf("failure, wrote only %u / %u bytes\n",wrote,len);
         else if(wrote == len)
                 printf("wrote all data: %u bytes \n",wrote);
+
+	close(sockfd);
 	close(sockfdu);
 
 	return 0;
@@ -99,18 +101,23 @@ int write_to_udp_socket(int sockfd, char* data, unsigned int data_len, unsigned 
 	//while(*data_written < data_len)
 	while(current_block < blocks)
 	{
-		if((wrote = sendto(sockfd,&data[*data_written],data_len - *data_written < buffer_size ? data_len - *data_written : buffer_size,0,(struct sockaddr*)&receiver,addrlen)) < 0)
+		if((wrote = sendto(sockfd,
+							&data[*data_written],
+							data_len - *data_written < buffer_size ? data_len - *data_written : buffer_size, // Less than buffer size = last
+							0,
+							(struct sockaddr*)&receiver,addrlen)) 
+							< 0)
 		{
 			perror("writing to socket failed");
 			return -1;
 		}
 		if(wrote == 0) return 0;
 		if(wrote != buffer_size) printf("Wrote less than buffer size, buffer:%d, wrote:%d\n",buffer_size,wrote);
-		*data_written += wrote;
+
+		*data_written += wrote; // Increase written amount
 		printf("%u\tbytes written (+%d)\n",*data_written,wrote);
 		current_block++;
 	}
-	printf("wrote?\n");
 	return 1;
 
 }
@@ -132,8 +139,15 @@ int write_to_tcp_socket(int sockfd, char* data, unsigned int data_len, unsigned 
 	while(*data_written < data_len)
 	{
 		// Write remaining data with do not wait flag - fill the send buffer and continue
-		//if((wrote = send(sockfd,&data[*data_written],data_len - *data_written,MSG_DONTWAIT)) < 0)
+#ifdef __ALL_ONCE_DONTWAIT
+		if((wrote = send(sockfd,&data[*data_written],data_len - *data_written,MSG_DONTWAIT)) < 0)
+#elif __ALL_ONCE
+		if((wrote = send(sockfd,&data[*data_written],data_len - *data_written,0)) < 0)
+#elif __BUFTENTH
 		if((wrote = send(sockfd,&data[*data_written],buffer_size/10,0)) < 0)
+#else 
+		if((wrote = send(sockfd,&data[*data_written],buffer_size,0)) < 0) // Full buffer
+#endif
 		{
 			perror("writing to socket failed");
 			return -1;

@@ -9,7 +9,6 @@ int main(int argc, char* argv[])
 	
 	int sockfdu = socket(AF_INET,SOCK_DGRAM,0);
 	int sockfd = socket(AF_INET,SOCK_STREAM,0);
-	//int sockfdu = socket(AF_INET,SOCK_DGRAM,0);
 	 
 	if(sockfd < 0) perror("socket error");
 	if(sockfdu < 0) perror("udp socket error");
@@ -54,7 +53,7 @@ int main(int argc, char* argv[])
 				printf("first read, packet total size = %u\n",total);
 				
 				// increase the buffer allocation
-				if(total > INITIAL_GUESS)	buf = realloc(buf,total);
+				if(total > INITIAL_GUESS) buf = realloc(buf,total);
 				
 				remaining = total - data_read; // Update remaining amount
 				first_read = 0;
@@ -65,7 +64,8 @@ int main(int argc, char* argv[])
 		else
 		{
 			remaining -= data_read; // Update remaining amount
-			printf("read\t\t%u\tbytes\nremaining\t%u\tbytes\n",data_read,remaining);
+			printf("read\t\t%u\tbytes\nremaining\t%u\tbytes\n",
+				data_read, remaining);
 		}
 	
 	} while (remaining > 0);
@@ -75,58 +75,57 @@ int main(int argc, char* argv[])
 	unsigned int udata_read = 0;
 	uint32_t packetsize = 0;
 	uint32_t packets = 0;
-	uint32_t utotal = 0;
+	uint32_t utotal = INITIAL_GUESS;
 	uint32_t uremaining = 0;
 	uint32_t receivedpackets = 0;
 	uint32_t receivedamount = 0;
 
 	char* ubuf = (char*)calloc(utotal,sizeof(char)); // Initial buffer
 
-	       do
-	       {
-	               // New packet
-	               if(first_read)
-	               {
+	do
+	{
+		// New packet
+		if(first_read)
+		{
 			int initialsize = sizeof(uint32_t)*2;
 			char initial[initialsize];
 			memset(&initial,0,initialsize);
-	                       // read enough to get the packet size
-	                       if((udata_read = recvfrom(sockfdu,&initial,initialsize,0,(struct sockaddr*)&conn,&alen)) == initialsize)
-	                       {
-				packetsize = ntohl(*(uint32_t*)&initial[0]);
-				packets = ntohl(*(uint32_t*)&initial[sizeof(uint32_t)]); 
-				// one packet size
-				utotal = packetsize * packets;
-	                               printf("first read, packet total size = %u (%u bytes per packet * %u packets\n",utotal,packetsize,packets);
+			// read enough to get the packet size
+			if((udata_read = recvfrom(sockfdu,&initial,initialsize,0,(struct sockaddr*)&conn,&alen)) == initialsize)
+			{
+				packetsize = ntohl(*(uint32_t*)&initial[0]); // one packet size
+				packets = ntohl(*(uint32_t*)&initial[sizeof(uint32_t)]); // packet count
+				
+				utotal = packetsize * packets; // Estimate, last might be less?
 
-	                               // increase the buffer allocation
-	                               ubuf = realloc(ubuf,utotal);
-				uremaining = utotal;
+				printf("first read, data total size = %u (%u bytes per packet * %u packets\n",
+						utotal,packetsize,packets);
 
-	                               first_read = 0;
-	                       }
-	                       else
+				// increase the buffer allocation
+				ubuf = realloc(ubuf,utotal);
+				uremaining = utotal; // Remaining estimated data, actually remaining the reported amount of packets
+				first_read = 0;
+			}
+			else
 			{
 				printf("Read less than %d bytes (header size), cannot proceed\n",data_read);
-				return 1;
-				
+				return 1;		
 			}
-	               }
-	               else
-	               {
+		}
+		else
+		{
+			// Read data from udp socket and continue where last time left off (receivedamount)
 			udata_read = recvfrom(sockfdu,&ubuf[receivedamount],packetsize,0,(struct sockaddr*)&conn,&alen);
-	                       uremaining -= udata_read; // Update remaining amount
-	                       if(udata_read == packetsize) receivedpackets++;
-	                       else if (udata_read < packetsize && receivedpackets+1 == packets) receivedpackets++; // last?
-	                       receivedamount += udata_read;
-	                       printf("read\t\t%u\tbytes\nremaining (estimated)\t%u\tbytes\n",udata_read,uremaining);
-	               }
 
-	       } while (receivedpackets < packets);
+			uremaining -= udata_read; // Update remaining estimated amount
 
-	       //int dgram = recvfrom(sockfdu,&ubuf,50000,0,(struct sockaddr*)&conn,&alen);
-	       //printf("Got %d bytes\n",dgram);
-	       //for(int i = sizeof(uint32_t); i < dgram; i++) printf("%c%s",ubuf[i], i+1 == dgram ? "\n" : "");
+			if(udata_read == packetsize) receivedpackets++; // Got full packet, increase counter
+			else if (udata_read < packetsize && receivedpackets+1 == packets) receivedpackets++; // last packet?
+			receivedamount += udata_read;
+			printf("read\t\t%u\tbytes\nremaining (estimated)\t%u\tbytes\n",udata_read,uremaining);
+		}
+
+	} while (receivedpackets < packets);
 
 	if(remaining == 0) 
 	{
@@ -144,24 +143,25 @@ int main(int argc, char* argv[])
 		}
 	}
 	else printf("got incomplete TCP packet, %u/%u bytes received\n",total-remaining,total);
+
 	getc(stdin);
+
 	if(receivedpackets == packets)
-	       {
-	               printf("got full UDP packet:\nprint %u bytes of data? (y/n):",receivedamount);
-	               switch(getc(stdin))
-	               {
-	                       case 'y':
-	                               for(int i = sizeof(uint32_t); i < utotal; i++) printf("%c%s",ubuf[i], i+1 == utotal ? "\n" : "");
-	                               break;
-	                       case 'n':
-	                               break;
-	                       default:
-	                               printf("invalid char.\n");
-	                               break;
-	               }
-	       }
-	       else printf("got incomplete UDP packet, %u/%u bytes received\n",utotal-uremaining,utotal);
-	
+	{
+		printf("got full UDP packet:\nprint %u bytes of data? (y/n):",receivedamount);
+		switch(getc(stdin))
+		{
+			case 'y':
+				for(int i = sizeof(uint32_t); i < utotal; i++) printf("%c%s",ubuf[i], i+1 == utotal ? "\n" : "");
+				break;
+			case 'n':
+				break;
+			default:
+				printf("invalid char.\n");
+				break;
+		}
+	}
+	else printf("got incomplete UDP packet, %u/%u bytes received\n",utotal-uremaining,utotal);
 	
 	free(buf);
 	free(ubuf);
