@@ -124,7 +124,7 @@ int main(int argc, char* argv[])
 			else printf("read less and it is not last packet\n");
 			receivedamount += udata_read;
 			printf("read\t\t%u\tbytes\nremaining (estimated)\t%u\tbytes (p%d, total=%d) \n",
-						udata_read,uremaining,receivedpackets,receivedamount);
+				udata_read,uremaining,receivedpackets,receivedamount);
 		}
 
 	} while (receivedpackets < packets);
