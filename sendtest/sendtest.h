@@ -9,6 +9,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#define BLEN 700000
+#define BLEN 70000
 
 #endif

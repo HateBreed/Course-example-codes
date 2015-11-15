@@ -81,7 +81,8 @@ int write_to_udp_socket(int sockfd, char* data, unsigned int data_len, unsigned 
 	}
 	else printf("UDP buffer size = %d bytes\n", buffer_size);
 
-	uint32_t blocks = data_len / buffer_size + 1;
+	uint32_t blocks = ((uint32_t)data_len / buffer_size);
+	if(blocks*buffer_size < data_len) blocks++;
 
 	// Size of block + amount of blocks
 	int initialsize = sizeof(uint32_t)*2;
@@ -112,10 +113,10 @@ int write_to_udp_socket(int sockfd, char* data, unsigned int data_len, unsigned 
 			return -1;
 		}
 		if(wrote == 0) return 0;
-		if(wrote != buffer_size) printf("Wrote less than buffer size, buffer:%d, wrote:%d\n",buffer_size,wrote);
+		if(wrote != buffer_size) printf("p%d: Wrote less than buffer size, buffer:%d, wrote:%d\n",current_block+1,buffer_size,wrote);
 
 		*data_written += wrote; // Increase written amount
-		printf("%u\tbytes written (+%d)\n",*data_written,wrote);
+		printf("p%d: %u\tbytes written (+%d)\n",current_block+1,*data_written,wrote);
 		current_block++;
 	}
 	return 1;

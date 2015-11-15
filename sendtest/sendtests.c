@@ -121,8 +121,10 @@ int main(int argc, char* argv[])
 
 			if(udata_read == packetsize) receivedpackets++; // Got full packet, increase counter
 			else if (udata_read < packetsize && receivedpackets+1 == packets) receivedpackets++; // last packet?
+			else printf("read less and it is not last packet\n");
 			receivedamount += udata_read;
-			printf("read\t\t%u\tbytes\nremaining (estimated)\t%u\tbytes\n",udata_read,uremaining);
+			printf("read\t\t%u\tbytes\nremaining (estimated)\t%u\tbytes (p%d, total=%d) \n",
+						udata_read,uremaining,receivedpackets,receivedamount);
 		}
 
 	} while (receivedpackets < packets);
