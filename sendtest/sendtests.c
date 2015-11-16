@@ -82,6 +82,9 @@ int main(int argc, char* argv[])
 	uint32_t receivedamount = 0;
 
 	char* ubuf = (char*)calloc(utotal,sizeof(char)); // Initial buffer
+	
+	fd_set readset;
+	long time_to_wait = 2;
 
 	do
 	{
@@ -115,17 +118,38 @@ int main(int argc, char* argv[])
 		}
 		else
 		{
-			// Read data from udp socket and continue where last time left off (receivedamount)
-			udata_read = recvfrom(sockfdu,&ubuf[receivedamount],packetsize,0,(struct sockaddr*)&conn,&alen);
+			FD_ZERO(&readset);
+			FD_SET(sockfdu,&readset);
+			struct timeval timeset;
+			timeset.tv_sec = time_to_wait;
+			timeset.tv_usec = 0;
+			
+			if(select(sockfdu+1,&readset,NULL,NULL,&timeset) < 1)
+			{
+				printf("Did not get data from UDP in %lu seconds\n",time_to_wait);
+				break;
+			}
+			else
+			{
+				long time_spent_sec = time_to_wait - timeset.tv_sec == 1 && timeset.tv_usec > 0 ? 0 : time_to_wait - timeset.tv_sec;
+				long time_spent_usec = 1000000 - timeset.tv_usec;
+				printf("Waited %lu seconds and %lu microseconds in select()\n",time_spent_sec,time_spent_usec);
+			}
+			
+			if(FD_ISSET(sockfdu,&readset))
+			{
+				// Read data from udp socket and continue where last time left off (receivedamount)
+				udata_read = recvfrom(sockfdu,&ubuf[receivedamount],packetsize,0,(struct sockaddr*)&conn,&alen);
 
-			uremaining -= udata_read; // Update remaining estimated amount
+				uremaining -= udata_read; // Update remaining estimated amount
 
-			if(udata_read == packetsize) receivedpackets++; // Got full packet, increase counter
-			else if (udata_read < packetsize && receivedpackets+1 == packets) receivedpackets++; // last packet?
-			else printf("read less and it is not last packet\n");
-			receivedamount += udata_read;
-			printf("read\t\t%u\tbytes\nremaining (estimated)\t%u\tbytes (p%d, total=%d) \n",
-				udata_read,uremaining,receivedpackets,receivedamount);
+				if(udata_read == packetsize) receivedpackets++; // Got full packet, increase counter
+				else if (udata_read < packetsize && receivedpackets+1 == packets) receivedpackets++; // last packet?
+				else printf("read less and it is not last packet\n");
+				receivedamount += udata_read;
+				printf("read\t\t%u\tbytes\nremaining (estimated)\t%u\tbytes (p%d, total=%d) \n",
+					udata_read,uremaining,receivedpackets,receivedamount);
+			}
 		}
 
 	} while (receivedpackets < packets);
