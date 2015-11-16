@@ -6,9 +6,9 @@ int write_to_udp_socket(int,char*,unsigned int, unsigned int*,
 
 int main(int argc, char* argv[])
 {
-	if(argc != 3) return -1;
+	if(argc < 3 || argc > 4) return -1;
 	
-	unsigned int len = BLEN, wrote = 0;
+	unsigned int len = argc == 4 ? atoi(argv[3]) : BLEN, wrote = 0;
 	char buf[len];
 	
 	// Initialize the packet
