@@ -64,8 +64,8 @@ int main(int argc, char* argv[])
 	return 0;
 }
 
-int write_to_udp_socket(int sockfd, char* data, unsigned int data_len, unsigned int *data_written, 
-	struct sockaddr_in receiver, socklen_t addrlen) 
+int write_to_udp_socket(int sockfd, char* data, unsigned int data_len, 
+	unsigned int *data_written, struct sockaddr_in receiver, socklen_t addrlen) 
 {
 	unsigned int buffer_size = 0;
 	unsigned int blen = sizeof(buffer_size);
@@ -98,23 +98,23 @@ int write_to_udp_socket(int sockfd, char* data, unsigned int data_len, unsigned 
 	*(uint32_t*)&initial[0] = htonl(buffer_size);
 	*(uint32_t*)&initial[sizeof(uint32_t)] = htonl(blocks);
 
-	if((wrote = sendto(sockfd,&initial,initialsize,0,(struct sockaddr*)&receiver,addrlen))
-		!= initialsize)
+	if((wrote = sendto(sockfd,&initial,initialsize,0,
+		(struct sockaddr*)&receiver,addrlen)) != initialsize)
 	{
 		perror("Sending initial packet failed");
 		return -1;
 	}
 
 	uint32_t current_block = 0;
+	int to_write = 0;
 
 	while(current_block < blocks)
 	{
-		if((wrote = sendto(sockfd,
-					&data[*data_written],
-					data_len - *data_written < buffer_size ? data_len - *data_written : buffer_size, // Less than buffer size = last
-					0,
-					(struct sockaddr*)&receiver,addrlen)) 
-					< 0)
+		// If writing less than buffer size = last packet
+		to_write = data_len - *data_written < buffer_size ?
+			data_len - *data_written : buffer_size;
+		if((wrote = sendto(sockfd, &data[*data_written], to_write, 0,
+					(struct sockaddr*)&receiver,addrlen)) < 0)
 		{
 			perror("writing to socket failed");
 			return -1;
@@ -122,17 +122,19 @@ int write_to_udp_socket(int sockfd, char* data, unsigned int data_len, unsigned 
 		if(wrote == 0) return 0;
 		if(wrote != buffer_size) 
 			printf("p%d: Wrote less than buffer size, buffer:%d, wrote:%d\n",
-			current_block+1,buffer_size,wrote);
+				current_block+1,buffer_size,wrote);
 
 		*data_written += wrote; // Increase written amount
-		printf("p%d: %u\tbytes written (+%d)\n",current_block+1,*data_written,wrote);
+		printf("p%d: %u\tbytes written (+%d)\n",
+			current_block+1,*data_written,wrote);
 		current_block++;
 	}
 	return 1;
 
 }
 
-int write_to_tcp_socket(int sockfd, char* data, unsigned int data_len, unsigned int *data_written)
+int write_to_tcp_socket(int sockfd, char* data, unsigned int data_len, 
+	unsigned int *data_written)
 {
 	int wrote = 0;
 	
@@ -145,7 +147,8 @@ int write_to_tcp_socket(int sockfd, char* data, unsigned int data_len, unsigned 
 	unsigned int data_to_write = 0;
 	unsigned int flags = 0;
 
-	if(getsockopt(sockfd, SOL_SOCKET, SO_SNDBUF,&buffer_size,&blen)) perror("Cannot get TCP buffer length\n");
+	if(getsockopt(sockfd, SOL_SOCKET, SO_SNDBUF,&buffer_size,&blen)) 
+		perror("Cannot get TCP buffer length\n");
 	else printf("TCP buffer size = %d bytes\n", buffer_size);
 
 	// While we have something to write
@@ -155,16 +158,22 @@ int write_to_tcp_socket(int sockfd, char* data, unsigned int data_len, unsigned 
 #ifdef __ALL_ONCE_DONTWAIT
 		flags = MSG_DONTWAIT;
 		data_to_write = data_len - *data_written;
-		//if((wrote = send(sockfd,&data[*data_written],data_len - *data_written,MSG_DONTWAIT)) < 0)
+		//if((wrote = send(sockfd,&data[*data_written],
+		//	data_len - *data_written,MSG_DONTWAIT)) < 0)
 #elif __ALL_ONCE
 		data_to_write = data_len - *data_written;
-		//if((wrote = send(sockfd,&data[*data_written],data_len - *data_written,0)) < 0)
+		//if((wrote = send(sockfd,&data[*data_written],
+		//	data_len - *data_written,0)) < 0)
 #elif __BUFTENTH
-		data_to_write = buffer_size/10 > data_len - *data_written ? data_len - *data_written : buffer_size/10;
-		//if((wrote = send(sockfd,&data[*data_written],buffer_size/10 > data_len - *data_written ? data_len - *data_written : buffer_size/10,0)) < 0)
+		data_to_write = buffer_size/10 > data_len - *data_written ? 
+			data_len - *data_written : buffer_size/10;
+		//if((wrote = send(sockfd,&data[*data_written],buffer_size/10 > 
+		//	data_len - *data_written ? data_len - *data_written : buffer_size/10,0)) < 0)
 #else
-		data_to_write = buffer_size > data_len - *data_written ? data_len - *data_written : buffer_size/10;
-		//if((wrote = send(sockfd,&data[*data_written],buffer_size > data_len - *data_written ? data_len - *data_written : buffer_size ,0)) < 0) // Full buffer
+		data_to_write = buffer_size > data_len - *data_written ? 
+			data_len - *data_written : buffer_size/10;
+		//if((wrote = send(sockfd,&data[*data_written],buffer_size > 
+		//	data_len - *data_written ? data_len - *data_written : buffer_size ,0)) < 0)
 #endif
 		if((wrote = send(sockfd,&data[*data_written],data_to_write,flags)) < 0)
 		{
