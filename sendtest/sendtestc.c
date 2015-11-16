@@ -71,11 +71,18 @@ int write_to_udp_socket(int sockfd, char* data, unsigned int data_len, unsigned 
 	unsigned int blen = sizeof(buffer_size);
 	int wrote = 0;
 
-        if(getsockopt(sockfd, SOL_SOCKET, SO_SNDBUF,&buffer_size,&blen)) perror("Cannot get UDP buffer length\n");
+        if(getsockopt(sockfd, SOL_SOCKET, SO_SNDBUF,&buffer_size,&blen)) 
+        	perror("Cannot get UDP buffer length\n");
         else if (buffer_size > 0x10000)
 	{
 		printf("UDP buffer size = %u bytes is too big, reducing", buffer_size);
+#ifdef __BUFTENTH
 		buffer_size = 0x10000 / 10;
+#else
+		// just to be safe, reduce by 60 bytes, with IPv6 48 (40+8) but IP options
+		// can increase the size but still with this value, fragmentation happens
+		buffer_size = 0x10000 - 60; 
+#endif
 		printf(" to %u\n",buffer_size);
 
 	}
@@ -91,15 +98,15 @@ int write_to_udp_socket(int sockfd, char* data, unsigned int data_len, unsigned 
 	*(uint32_t*)&initial[0] = htonl(buffer_size);
 	*(uint32_t*)&initial[sizeof(uint32_t)] = htonl(blocks);
 
-	if((wrote = sendto(sockfd,&initial,initialsize,0,(struct sockaddr*)&receiver,addrlen)) != initialsize)
+	if((wrote = sendto(sockfd,&initial,initialsize,0,(struct sockaddr*)&receiver,addrlen))
+		!= initialsize)
 	{
 		perror("Sending initial packet failed");
 		return -1;
 	}
 
-	uint32_t current_block;
-	//uint32_t current = 0;
-	//while(*data_written < data_len)
+	uint32_t current_block = 0;
+
 	while(current_block < blocks)
 	{
 		if((wrote = sendto(sockfd,
@@ -113,7 +120,9 @@ int write_to_udp_socket(int sockfd, char* data, unsigned int data_len, unsigned 
 			return -1;
 		}
 		if(wrote == 0) return 0;
-		if(wrote != buffer_size) printf("p%d: Wrote less than buffer size, buffer:%d, wrote:%d\n",current_block+1,buffer_size,wrote);
+		if(wrote != buffer_size) 
+			printf("p%d: Wrote less than buffer size, buffer:%d, wrote:%d\n",
+			current_block+1,buffer_size,wrote);
 
 		*data_written += wrote; // Increase written amount
 		printf("p%d: %u\tbytes written (+%d)\n",current_block+1,*data_written,wrote);
@@ -132,6 +141,9 @@ int write_to_tcp_socket(int sockfd, char* data, unsigned int data_len, unsigned 
 
 	int buffer_size = 0;
 	unsigned int blen = sizeof(buffer_size);
+	
+	unsigned int data_to_write = 0;
+	unsigned int flags = 0;
 
 	if(getsockopt(sockfd, SOL_SOCKET, SO_SNDBUF,&buffer_size,&blen)) perror("Cannot get TCP buffer length\n");
 	else printf("TCP buffer size = %d bytes\n", buffer_size);
@@ -141,14 +153,20 @@ int write_to_tcp_socket(int sockfd, char* data, unsigned int data_len, unsigned 
 	{
 		// Write remaining data with do not wait flag - fill the send buffer and continue
 #ifdef __ALL_ONCE_DONTWAIT
-		if((wrote = send(sockfd,&data[*data_written],data_len - *data_written,MSG_DONTWAIT)) < 0)
+		flags = MSG_DONTWAIT;
+		data_to_write = data_len - *data_written;
+		//if((wrote = send(sockfd,&data[*data_written],data_len - *data_written,MSG_DONTWAIT)) < 0)
 #elif __ALL_ONCE
-		if((wrote = send(sockfd,&data[*data_written],data_len - *data_written,0)) < 0)
+		data_to_write = data_len - *data_written;
+		//if((wrote = send(sockfd,&data[*data_written],data_len - *data_written,0)) < 0)
 #elif __BUFTENTH
-		if((wrote = send(sockfd,&data[*data_written],buffer_size/10,0)) < 0)
-#else 
-		if((wrote = send(sockfd,&data[*data_written],buffer_size,0)) < 0) // Full buffer
+		data_to_write = buffer_size/10 > data_len - *data_written ? data_len - *data_written : buffer_size/10;
+		//if((wrote = send(sockfd,&data[*data_written],buffer_size/10 > data_len - *data_written ? data_len - *data_written : buffer_size/10,0)) < 0)
+#else
+		data_to_write = buffer_size > data_len - *data_written ? data_len - *data_written : buffer_size/10;
+		//if((wrote = send(sockfd,&data[*data_written],buffer_size > data_len - *data_written ? data_len - *data_written : buffer_size ,0)) < 0) // Full buffer
 #endif
+		if((wrote = send(sockfd,&data[*data_written],data_to_write,flags)) < 0)
 		{
 			perror("writing to socket failed");
 			return -1;
@@ -158,7 +176,7 @@ int write_to_tcp_socket(int sockfd, char* data, unsigned int data_len, unsigned 
 	  
 		// Update the written amount
 	  	*data_written += wrote;
-	  	printf("%u\tbytes written (+%d)\n",*data_written,wrote);
+	  	printf("%u\tbytes of %u written (+%d)\n",*data_written,data_len,wrote);
 	}
 	
 	return 1;

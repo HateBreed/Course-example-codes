@@ -69,6 +69,7 @@ int main(int argc, char* argv[])
 		}
 	
 	} while (remaining > 0);
+	if(!remaining) printf("Got all data over TCP\n");
 	
 	printf("Waiting on UDP on port %d\n",ntohs(own.sin_port));
 	first_read = 1;
