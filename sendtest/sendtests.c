@@ -21,7 +21,7 @@ int main(int argc, char* argv[])
 	own.sin_port = htons(atoi(argv[1]));
 	socklen_t alen = sizeof(struct sockaddr_in);
 
-	if(bind(sockfd,(struct sockaddr*)&own,alen) < 0) perror("bind");
+	if(bind(sockfd,(struct sockaddr*)&own,alen) < 0) perror("bind tcp");
 	own.sin_port = htons(atoi(argv[1])+1);
 	if(bind(sockfdu,(struct sockaddr*)&own,alen) < 0) perror("bind udp");
 
@@ -50,7 +50,7 @@ int main(int argc, char* argv[])
 			if(data_read >= sizeof(uint32_t))
 			{
 				total = ntohl(*(uint32_t*)&buf[0]); // size
-				printf("first read, packet total size = %u\n",total);
+				printf("first read (%d bytes), packet total size = %u\n",data_read,total);
 				
 				// increase the buffer allocation
 				if(total > INITIAL_GUESS) buf = realloc(buf,total);
@@ -68,7 +68,7 @@ int main(int argc, char* argv[])
 				data_read, remaining);
 		}
 	
-	} while (remaining > 0);
+	} while (remaining > 0 || first_read == 1);
 	if(!remaining) printf("Got all data over TCP\n");
 	
 	printf("Waiting on UDP on port %d\n",ntohs(own.sin_port));
