@@ -15,8 +15,7 @@ int main(int argc, char* argv[])
 	memset(&buf,0,len);
 	*(uint32_t*)&buf[0] = htonl(len); // Size at the front
 	memcpy(&buf[sizeof(uint32_t)],"<START>",7); // Start tag
-	for(int i = sizeof(uint32_t)+7; i < len-5; i++) 
-	buf[i] = 65+(i%20); // data
+	for(int i = sizeof(uint32_t)+7; i < len-5; i++) buf[i] = 65+(i%20); // data
 	memcpy(&buf[len-5],"<END>",5); // end tag
 	
 	int sockfd = -1;
@@ -31,8 +30,11 @@ int main(int argc, char* argv[])
 	sockfd = socket(AF_INET,SOCK_STREAM,0);
 	sockfdu = socket(AF_INET,SOCK_DGRAM,0);
 	
-	if(sockfd < 0) perror("sock");
-	if(sockfdu < 0) perror("sock");
+	if(sockfd < 0 || sockfdu < 0)
+	{
+		perror("sock");
+		return -1;
+	}
 
 	// Set the server info, no checks in this demo
 	// argv[1] = addr, argv[2] = port
