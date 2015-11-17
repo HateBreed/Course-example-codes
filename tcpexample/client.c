@@ -16,9 +16,9 @@ int main(int argc, char* argv[]) {
 	int sock = -1, optc = -1;
 	
 	struct addrinfo hints = { .ai_flags = 0,
-														.ai_family = PF_UNSPEC,				/* Now we do not specify */
-														.ai_socktype = SOCK_STREAM,
-														.ai_protocol = IPPROTO_TCP};
+					.ai_family = PF_UNSPEC,				/* Now we do not specify */
+					.ai_socktype = SOCK_STREAM,
+					.ai_protocol = IPPROTO_TCP};
 														
 	struct addrinfo *result = NULL, *iter = NULL;
 	char *host = NULL, *port = NULL;

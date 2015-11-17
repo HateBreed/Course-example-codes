@@ -3,7 +3,7 @@
 int write_to_tcp_socket(int,char*,unsigned int, unsigned int*);
 int write_to_udp_socket(int,char*,unsigned int, unsigned int*,
 	struct sockaddr_in,socklen_t);
-
+//#define USE_OLD_ABI 1
 int main(int argc, char* argv[])
 {
 	if(argc < 3 || argc > 4) return -1;
@@ -19,25 +19,90 @@ int main(int argc, char* argv[])
 	buf[i] = 65+(i%20); // data
 	memcpy(&buf[len-5],"<END>",5); // end tag
 	
-	int sockfd = socket(AF_INET,SOCK_STREAM,0); 
-	int sockfdu = socket(AF_INET,SOCK_DGRAM,0);
+	int sockfd = -1;
+	int sockfdu = -1;
+	
+	struct sockaddr_in peer_tcp,peer_udp;
+	memset(&peer_tcp,0,sizeof(peer_tcp));
+	memset(&peer_udp,0,sizeof(peer_udp));
+	socklen_t alen = sizeof(struct sockaddr_in);
+
+#ifdef USE_OLD_ABI
+	sockfd = socket(AF_INET,SOCK_STREAM,0);
+	sockfdu = socket(AF_INET,SOCK_DGRAM,0);
 	
 	if(sockfd < 0) perror("sock");
 	if(sockfdu < 0) perror("sock");
 
 	// Set the server info, no checks in this demo
 	// argv[1] = addr, argv[2] = port
-	struct sockaddr_in peer;
-	memset(&peer,0,sizeof(peer));
-	peer.sin_family = AF_INET;
+	peer_tcp.sin_family = AF_INET;
 
-	if(inet_pton(AF_INET,argv[1],&(peer.sin_addr)) <= 0)
+	if(inet_pton(AF_INET,argv[1],&(peer_tcp.sin_addr)) <= 0)
 		perror("pton");
 
-	peer.sin_port = htons(atoi(argv[2]));
-	socklen_t alen = sizeof(struct sockaddr_in);
+	peer_tcp.sin_port = htons(atoi(argv[2]));
+	memcpy(&peer_udp,&peer_tcp,alen);
+	peer_udp.sin_port = htons(atoi(argv[2])+1);
+#else
+	struct addrinfo hints = {	.ai_flags = 0,
+					.ai_family = PF_INET, // IPv4 only
+					.ai_socktype = SOCK_STREAM,
+					.ai_protocol = IPPROTO_TCP};
 	
-	if(connect(sockfd,(struct sockaddr*)&peer,alen) < 0)
+	struct addrinfo *result = NULL, *iter = NULL;
+	
+	char port_str[NI_MAXSERV] = { 0 };
+	memcpy(&port_str,argv[2],NI_MAXSERV);
+	
+	if(getaddrinfo(argv[1],port_str,&hints,&result) < 0) 
+	{
+		perror("Cannot resolve address");
+		return -1;
+	}
+	
+	// Create TCP socket
+	for(iter = result; iter != NULL; iter = iter->ai_next) 
+	{
+		sockfd = socket(iter->ai_family,iter->ai_socktype,iter->ai_protocol);
+		break;
+	}
+	// Copy the address info for TCP
+	if(iter->ai_addrlen == alen) memcpy(&peer_tcp,iter->ai_addr,iter->ai_addrlen);
+	else printf("Mismatching struct size\n");
+	
+	freeaddrinfo(result);
+	result = NULL;
+	
+	// Establish information for UDP
+	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_protocol = IPPROTO_UDP;
+	
+	memset(&port_str,0,NI_MAXSERV);
+	snprintf(port_str,NI_MAXSERV,"%d",atoi(argv[2])+1); // port+1
+	
+	if(getaddrinfo(argv[1],port_str,&hints,&result) < 0)
+	{
+		perror("Cannot resolve address");
+		return -1;
+	}
+	
+	// Create UDP socket
+	for(iter = result; iter != NULL; iter = iter->ai_next) 
+	{
+		sockfdu = socket(iter->ai_family,iter->ai_socktype,iter->ai_protocol);
+		break;
+	}
+	
+	// Copy the address info for UDP
+	if(iter->ai_addrlen == alen) memcpy(&peer_udp,iter->ai_addr,iter->ai_addrlen);
+	else printf("Mismatching struct size\n");
+	
+	freeaddrinfo(result);
+
+#endif
+	
+	if(connect(sockfd,(struct sockaddr*)&peer_tcp,alen) < 0)
 		printf("connect error\n");
 
 	// Do the write loop
@@ -49,11 +114,10 @@ int main(int argc, char* argv[])
 	//sleep(2);
 	
 	wrote = 0;
-	
-	peer.sin_port = htons(atoi(argv[2])+1);
-	printf("Sending data to UDP port %d\n",ntohs(peer.sin_port));
+
+	printf("Sending data to UDP port %d\n",ntohs(peer_udp.sin_port));
 	// Do the write loop
-        if(write_to_udp_socket(sockfdu,buf,len,&wrote,peer,alen) <= 0)
+        if(write_to_udp_socket(sockfdu,buf,len,&wrote,peer_udp,alen) <= 0)
                 printf("failure, wrote only %u / %u bytes\n",wrote,len);
         else if(wrote == len)
                 printf("wrote all data: %u bytes \n",wrote);
