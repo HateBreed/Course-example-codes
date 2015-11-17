@@ -62,7 +62,7 @@ int main(int argc, char* argv[])
 		if (bind(sockfd,iter->ai_addr, iter->ai_addrlen) < 0)
 		{
 			close(sockfd);
-			perror("bind() UDP");
+			perror("bind() TCP");
 			return -1;
       		}
 		break;
@@ -90,7 +90,7 @@ int main(int argc, char* argv[])
 	{
 		if ((sockfdu = socket(iter->ai_family,iter->ai_socktype,iter->ai_protocol)) < 0)
 		{
-			perror("socket()");
+			perror("socket() UDP");
 			return -1;
 		}
 			
@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
 		if (bind(sockfdu,iter->ai_addr, iter->ai_addrlen) < 0)
 		{
 			close(sockfdu);
-			perror("bind()");
+			perror("bind() UDP");
 			return -1;
       		}
 		break;

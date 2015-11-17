@@ -64,7 +64,8 @@ int main(int argc, char* argv[])
 	// Create TCP socket
 	for(iter = result; iter != NULL; iter = iter->ai_next) 
 	{
-		sockfd = socket(iter->ai_family,iter->ai_socktype,iter->ai_protocol);
+		if((sockfd = socket(iter->ai_family,iter->ai_socktype,iter->ai_protocol)) < 0) 
+			return -1;
 		break;
 	}
 	// Copy the address info for TCP
@@ -90,7 +91,8 @@ int main(int argc, char* argv[])
 	// Create UDP socket
 	for(iter = result; iter != NULL; iter = iter->ai_next) 
 	{
-		sockfdu = socket(iter->ai_family,iter->ai_socktype,iter->ai_protocol);
+		if((sockfdu = socket(iter->ai_family,iter->ai_socktype,iter->ai_protocol)) < 0)
+			return -1;
 		break;
 	}
 	
@@ -110,8 +112,6 @@ int main(int argc, char* argv[])
 		printf("failure, wrote only %u / %u bytes\n",wrote,len);
 	else if(wrote == len) 
 		printf("wrote all data: %u bytes \n",wrote);
-	
-	//sleep(2);
 	
 	wrote = 0;
 
