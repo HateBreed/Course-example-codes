@@ -1,16 +1,23 @@
 #include "sendtest.h"
 
 #define INITIAL_GUESS 65536
+//#define USE_OLD_ABI
 int read_from_socket(int,char*, unsigned int, unsigned int);
 
 int main(int argc, char* argv[])
 {
 	if(argc != 2) return -1;
 	
-	int sockfdu = socket(AF_INET,SOCK_DGRAM,0);
-	int sockfd = socket(AF_INET,SOCK_STREAM,0);
-	 
-	if(sockfd < 0) perror("socket error");
+	int sockfdu = -1;
+	int sockfd = -1;
+	int port = atoi(argv[1]);
+	
+	socklen_t alen = sizeof(struct sockaddr_in);
+
+#ifdef USE_OLD_ABI
+	sockfdu = socket(AF_INET,SOCK_DGRAM,0);
+	sockfd = socket(AF_INET,SOCK_STREAM,0);
+	if(sockfd < 0) perror("tcp socket error");
 	if(sockfdu < 0) perror("udp socket error");
 
 	// Set own addr struct
@@ -18,17 +25,95 @@ int main(int argc, char* argv[])
 	memset(&own,0,sizeof(own));
 	own.sin_family = AF_INET;
 	own.sin_addr.s_addr = INADDR_ANY;
-	own.sin_port = htons(atoi(argv[1]));
-	socklen_t alen = sizeof(struct sockaddr_in);
+	own.sin_port = htons(port);
 
 	if(bind(sockfd,(struct sockaddr*)&own,alen) < 0) perror("bind tcp");
-	own.sin_port = htons(atoi(argv[1])+1);
+	own.sin_port = htons(port+1);
 	if(bind(sockfdu,(struct sockaddr*)&own,alen) < 0) perror("bind udp");
+
+#else
+	struct addrinfo hints = {	.ai_flags = AI_PASSIVE,
+					.ai_family = PF_UNSPEC,
+					.ai_socktype = SOCK_STREAM,
+					.ai_protocol = IPPROTO_TCP};
+  
+	struct addrinfo *result = NULL, *iter = NULL;
+	
+	char port_str[NI_MAXSERV] = { 0 };
+	
+	memcpy(&port_str,argv[1],NI_MAXSERV);
+	
+	// Create and bind TCP socket
+	if(getaddrinfo(NULL,port_str,&hints,&result) < 0)
+	{
+		perror("getaddrinfo() TCP");
+		return -1;
+	}
+		
+	for(iter = result; iter != NULL; iter = iter->ai_next)
+	{
+		if ((sockfd = socket(iter->ai_family,iter->ai_socktype,iter->ai_protocol)) < 0)
+		{
+			perror("socket() TCP");
+			return -1;
+		}
+			
+		//Try to bind to this address
+		if (bind(sockfd,iter->ai_addr, iter->ai_addrlen) < 0)
+		{
+			close(sockfd);
+			perror("bind() UDP");
+			return -1;
+      		}
+		break;
+	}
+	
+	printf("Created and bound TCP socket using port %s\n",port_str);
+	
+	freeaddrinfo(result);
+	result = NULL;
+	
+	// Create and bind UDP socket
+	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_protocol = IPPROTO_UDP;
+	
+	memset(&port_str,0,NI_MAXSERV);
+	snprintf(port_str,NI_MAXSERV,"%d",port+1);
+	
+	if(getaddrinfo(NULL,port_str,&hints,&result))
+	{
+		perror("getaddrinfo() UDP");
+		return -1;
+	}
+		
+	for(iter = result; iter != NULL; iter = iter->ai_next)
+	{
+		if ((sockfdu = socket(iter->ai_family,iter->ai_socktype,iter->ai_protocol)) < 0)
+		{
+			perror("socket()");
+			return -1;
+		}
+			
+		//Try to bind to this address
+		if (bind(sockfdu,iter->ai_addr, iter->ai_addrlen) < 0)
+		{
+			close(sockfdu);
+			perror("bind()");
+			return -1;
+      		}
+		break;
+	}
+	
+	printf("Created and bound UDP socket using port %s\n",port_str);
+	
+	freeaddrinfo(result);
+#endif
 
 	listen(sockfd,1);
 	 
 	struct sockaddr_in conn;
 	memset(&conn,0,sizeof(conn));
+	
 	int newsock = accept(sockfd,(struct sockaddr*)&conn,&alen);
 	 
 	if(newsock < 0) perror("accept");
@@ -71,7 +156,7 @@ int main(int argc, char* argv[])
 	} while (remaining > 0 || first_read == 1);
 	if(!remaining) printf("Got all data over TCP\n");
 	
-	printf("Waiting on UDP on port %d\n",ntohs(own.sin_port));
+	printf("Waiting on UDP on port %d\n",port+1);
 	first_read = 1;
 	unsigned int udata_read = 0;
 	uint32_t packetsize = 0;

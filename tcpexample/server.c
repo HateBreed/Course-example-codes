@@ -52,15 +52,15 @@ int main(void)
 {
 	int listen_sock = -1, accept_sock = -1;
 	
-	struct addrinfo hints = { .ai_flags = AI_PASSIVE, 			/* Get addresses suitable for bind */
-														.ai_family = PF_INET6,				/* Only IPv6 */
-														.ai_socktype = SOCK_STREAM,		/* Stream socket - TCP */
-														.ai_protocol = IPPROTO_TCP};	/* TCP protocol */
-														
+	struct addrinfo hints = { .ai_flags = AI_PASSIVE, 	/* Get addresses suitable for bind */
+				.ai_family = PF_INET6,		/* Only IPv6 */
+				.ai_socktype = SOCK_STREAM,	/* Stream socket - TCP */
+				.ai_protocol = IPPROTO_TCP};	/* TCP protocol */
+							
 	struct addrinfo cl_hints = { 	.ai_flags = AI_CANONNAME,
-																.ai_family = PF_UNSPEC,		/* Not specified */
-																.ai_protocol = 0,
-																.ai_socktype = 0 };
+					.ai_family = PF_UNSPEC,		/* Not specified */
+					.ai_protocol = 0,
+					.ai_socktype = 0 };
 																	
 	struct addrinfo *result = NULL, *iter = NULL;
 	struct sockaddr_storage client_addr;
@@ -72,8 +72,8 @@ int main(void)
 	int sopt_yes = 1;
 	
 	struct sigaction signals = { 	.sa_handler = sighandler,		/* Handling function */
-																.sa_flags = 0 };						/* Additional flags */
-	sigemptyset(&signals.sa_mask);														/* Create new empty signal mask */
+					.sa_flags = 0 };			/* Additional flags */
+	sigemptyset(&signals.sa_mask);	/* Create new empty signal mask */
 		
 	// Add some signals
 	sigaction(SIGINT, &signals,NULL);
